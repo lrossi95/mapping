@@ -6,13 +6,13 @@ import json
 
 @st.cache_data
 def load_data():
-    gdf = gpd.read_file("/Users/lucarossi/Documents/gitprojects/mapping/webapp_data/gdf.geojson")
+    gdf = gpd.read_file("webapp_data/gdf.geojson")
     gdf = gdf.to_crs(epsg=4326)  # Keep it in WGS84 (lat/lon)
     
-    conversion_table = pd.read_csv("/Users/lucarossi/Documents/gitprojects/mapping/webapp_data/bpe_carreaux.csv")
-    isochrones = gpd.read_file("/Users/lucarossi/Documents/gitprojects/mapping/webapp_data/isochrones.geojson")
-    carreaux = gpd.read_file("/Users/lucarossi/Documents/gitprojects/mapping/webapp_data/carreaux.geojson")
-    bpe_points = gpd.read_file("/Users/lucarossi/Documents/gitprojects/mapping/webapp_data/bpe_points.geojson")
+    conversion_table = pd.read_csv("webapp_data/bpe_carreaux.csv")
+    isochrones = gpd.read_file("webapp_data/isochrones.geojson")
+    carreaux = gpd.read_file("webapp_data/carreaux.geojson")
+    bpe_points = gpd.read_file("webapp_data/bpe_points.geojson")
     bpe_points = bpe_points.dropna(subset=["LATITUDE", "LONGITUDE"])
 
     return gdf, isochrones, carreaux, bpe_points, conversion_table
