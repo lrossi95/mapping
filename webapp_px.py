@@ -10,14 +10,11 @@ BASE_DIR = Path(__file__).parent
 
 @st.cache_data
 def load_data():
-    gdf = gpd.read_file(BASE_DIR / "webapp_data" / "gdf.geojson")
-    gdf = gdf.to_crs(epsg=4326)  # Keep it in WGS84 (lat/lon)
-
+    gdf = gpd.read_file(BASE_DIR / "webapp_data" / "gdf.geojson").to_crs(epsg=4326)
     conversion_table = pd.read_csv(BASE_DIR / "webapp_data" / "bpe_carreaux.csv")
     carreaux = gpd.read_file(BASE_DIR / "webapp_data" / "carreaux.geojson")
     bpe_points = gpd.read_file(BASE_DIR / "webapp_data" / "bpe_points.geojson")
     bpe_points = bpe_points.dropna(subset=["LATITUDE", "LONGITUDE"])
-
     return gdf, carreaux, bpe_points, conversion_table
 
 def load_isochrone(LIBCOM):
@@ -36,8 +33,15 @@ isochrone = load_isochrone(selected_commune)
 available_profiles = isochrone["profile"].unique().tolist()
 available_ranges = sorted(isochrone["range"].unique().tolist())
 
+# 🟢 **Custom Labels for Profiles**
+profile_labels = {
+    "foot-walking": "Walking",
+    "cycling-regular": "Cycling",
+    "driving-car": "Car"
+}
+
 # 🟢 **Multi-Select Dropdowns**
-selected_profiles = st.multiselect("Select Profile(s)", options=available_profiles, default=available_profiles)
+selected_profiles = st.multiselect("Select Profile(s)", options=available_profiles, default=available_profiles, format_func=lambda x: profile_labels.get(x, x))
 selected_ranges = st.multiselect("Select Range(s)", options=available_ranges, default=available_ranges)
 
 # 🟢 **Dropdown: Select `Idcar_200m`**
@@ -81,11 +85,11 @@ fig = px.scatter_mapbox(
     color_discrete_sequence=["blue"],
     size_max=1,
     zoom=12,
-    opacity=0.1,
+    opacity=0.3,
     mapbox_style="carto-positron"
 )
 
-# 🟢 **Plot Isochrones**
+# 🟢 **Define Colors for Profiles**
 color_map = {
     "foot-walking": "rgba(255, 0, 0, 0.3)",  # Red
     "cycling-regular": "rgba(0, 255, 0, 0.3)",  # Green
@@ -105,6 +109,16 @@ if isochrones_geojson:
             if not layer_data.empty:
                 profile_geojson = json.loads(layer_data.to_json())
                 color = color_map.get(profile)
+
+                # **Count BPE points within the isochrone**
+                if not filtered_bpe_data.empty:
+                    joined = gpd.sjoin(filtered_bpe_data, layer_data, predicate="within", how="inner")
+                    bpe_count = len(joined)
+                else:
+                    bpe_count = 0
+
+                # 🟢 **Display BPE count per profile & range**
+                st.write(f"BPE count for {profile_labels.get(profile, profile)} ({range_value}s): {bpe_count}")
 
                 # Append `fill` layer for Mapbox
                 mapbox_layers.append({
@@ -127,6 +141,27 @@ fig.add_trace(px.scatter_mapbox(
     size_max=8,
     zoom=10
 ).data[0])
+
+# 🟢 **Generate Legend Annotations**
+legend_annotations = []
+y_position = 0.95  
+
+for profile, color in color_map.items():
+    legend_annotations.append(
+        dict(
+            x=0.01, y=y_position,
+            xref="paper", yref="paper",
+            text=f'<span style="color:{color.replace("0.3", "1")}">■</span> {profile_labels.get(profile, profile)}',
+            showarrow=False,
+            font=dict(size=14),
+            bgcolor="white",
+            bordercolor="black",
+            borderwidth=1
+        )
+    )
+    y_position -= 0.05  
+
+fig.update_layout(annotations=legend_annotations)
 
 # 🟢 **Adjust Map Bounds with Buffer**
 if not filtered_data.empty:
