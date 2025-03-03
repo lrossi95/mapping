@@ -1,6 +1,2 @@
-streamlit
 geopandas
-pandas
-folium
 plotly
-json
