@@ -1,0 +1,8 @@
+/.DS_Store
+/__pycache__
+/data
+/isochrones
+/main.ipynb
+/modules.py
+/webapp.py
+/webapp_data.geojson
