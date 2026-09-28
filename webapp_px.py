@@ -65,6 +65,8 @@ filtered_data = isochrone[
     (isochrone["range"].isin(selected_ranges))
 ]
 
+st.write(filtered_data.dtypes)
+
 # Make a safe copy for JSON export
 export_data = filtered_data.copy()
 
