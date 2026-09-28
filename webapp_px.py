@@ -64,9 +64,21 @@ filtered_data = isochrone[
     (isochrone["profile"].isin(selected_profiles)) &
     (isochrone["range"].isin(selected_ranges))
 ]
-filtered_bpe_data = bpe_points[bpe_points["LIBCOM"] == selected_commune]
 
-isochrones_geojson = json.loads(filtered_data.to_json()) if not filtered_data.empty else None
+# Make a safe copy for JSON export
+export_data = filtered_data.copy()
+
+for col in export_data.columns:
+    if col == export_data.geometry.name:
+        continue
+    if isinstance(export_data[col].dtype, pd.CategoricalDtype):
+        export_data[col] = export_data[col].astype(str)
+    elif pd.api.types.is_datetime64_any_dtype(export_data[col]):
+        export_data[col] = export_data[col].astype(str)
+
+isochrones_geojson = json.loads(export_data.to_json()) if not export_data.empty else None
+
+filtered_bpe_data = bpe_points[bpe_points["LIBCOM"] == selected_commune]
 
 # 🟢 **Compute Centroids**
 carreau = carreaux[carreaux["Idcar_200m"] == selected_idcar].copy()
