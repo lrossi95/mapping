@@ -4,6 +4,8 @@ import pandas as pd
 import plotly.express as px
 import json
 from pathlib import Path
+import numpy as np
+
 
 # Get the absolute path of the current script
 BASE_DIR = Path(__file__).parent
@@ -65,8 +67,6 @@ filtered_data = isochrone[
     (isochrone["range"].isin(selected_ranges))
 ]
 
-st.write(filtered_data.dtypes)
-
 # Make a safe copy for JSON export
 export_data = filtered_data.copy()
 
@@ -78,6 +78,21 @@ for col in export_data.columns:
     elif pd.api.types.is_datetime64_any_dtype(export_data[col]):
         export_data[col] = export_data[col].astype(str)
 
+    def to_native(val):
+        if isinstance(val, np.ndarray):
+            return val.tolist()
+        if isinstance(val, (list, tuple)):
+            return [to_native(v) for v in val]
+        if isinstance(val, np.generic):
+            return val.item()
+        return val
+
+# Sanitize the problem columns BEFORE calling to_json()
+if "geometry.coordinates" in export_data.columns:
+    export_data["geometry.coordinates"] = export_data["geometry.coordinates"].apply(to_native)
+if "properties.center" in export_data.columns:
+    export_data["properties.center"] = export_data["properties.center"].apply(to_native)
+
 isochrones_geojson = json.loads(export_data.to_json()) if not export_data.empty else None
 
 filtered_bpe_data = bpe_points[bpe_points["LIBCOM"] == selected_commune]
@@ -88,11 +103,8 @@ carreau["centroid"] = carreau.geometry.centroid
 carreau["center_lon"] = carreau["centroid"].x
 carreau["center_lat"] = carreau["centroid"].y
 
-# Debugging: Display centroid coordinates
-st.write("Centroid Coordinates:", carreau[["center_lat", "center_lon"]])
-
 # 🟢 **Mapbox Plot**
-fig = px.scatter_mapbox(
+fig = px.scatter_map(
     bpe_points,
     lat="LATITUDE",
     lon="LONGITUDE",
@@ -100,7 +112,7 @@ fig = px.scatter_mapbox(
     size_max=1,
     zoom=12,
     opacity=0.3,
-    mapbox_style="carto-positron"
+    map_style="carto-positron",
 )
 
 # 🟢 **Define Colors for Profiles**
@@ -110,7 +122,20 @@ color_map = {
     "driving-car": "rgba(0, 0, 255, 0.3)",  # Blue
 }
 
-mapbox_layers = []
+filtered_data = isochrone[
+    (isochrone["carreaux_id"] == selected_idcar) &
+    (isochrone["profile"].isin(selected_profiles)) &
+    (isochrone["range"].isin(selected_ranges))
+]
+
+# Drop columns that break to_json() for every use of filtered_data downstream
+cols_to_drop = ["geometry.coordinates", "geometry.type", "properties.center",
+                "properties.value", "properties.group_index"]
+filtered_data = filtered_data.drop(
+    columns=[c for c in cols_to_drop if c in filtered_data.columns]
+)
+
+map_layers = []
 
 if isochrones_geojson:
     for profile in selected_profiles:
@@ -134,8 +159,8 @@ if isochrones_geojson:
                 # 🟢 **Display BPE count per profile & range**
                 st.write(f"BPE count for {profile_labels.get(profile, profile)} ({range_value}s): {bpe_count}")
 
-                # Append `fill` layer for Mapbox
-                mapbox_layers.append({
+                # Append `fill` layer for the map
+                map_layers.append({
                     "source": profile_geojson,
                     "type": "fill",
                     "color": color,
@@ -143,16 +168,15 @@ if isochrones_geojson:
                     "below": "traces"
                 })
 
-if mapbox_layers:
-    fig.update_layout(mapbox_layers=mapbox_layers)
+if map_layers:
+    fig.update_layout(map_layers=map_layers)   # "map_layers" not "mapbox_layers"
 
 # 🟢 **Plot Centroids**
-fig.add_trace(px.scatter_mapbox(
+fig.add_trace(px.scatter_map(
     carreau,
     lat="center_lat",
     lon="center_lon",
     color_discrete_sequence=["red"],  # Red for centroids
-    size_max=8,
     zoom=10
 ).data[0])
 
@@ -183,11 +207,13 @@ if not filtered_data.empty:
 
     fig.update_layout(
         margin={"r": 0, "t": 0, "l": 0, "b": 0},
-        mapbox_bounds={
-            "west": filtered_data.total_bounds[0] - buffer, 
-            "east": filtered_data.total_bounds[2] + buffer,
-            "south": filtered_data.total_bounds[1] - buffer, 
-            "north": filtered_data.total_bounds[3] + buffer
+        map={
+            "bounds": {
+                "west": filtered_data.total_bounds[0] - buffer,
+                "south": filtered_data.total_bounds[1] - buffer,
+                "east": filtered_data.total_bounds[2] + buffer,
+                "north": filtered_data.total_bounds[3] + buffer,
+            }
         }
     )
 

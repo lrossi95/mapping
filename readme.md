@@ -12,4 +12,4 @@ When addressing mapping in Martinique, consider:
 These guidelines ensure both accuracy and clarity when expanding mapping projects across different territories.
 
 - [x] base plotting
-- [ ] web app - WIP
+- [x] web app - WIP
